@@ -307,7 +307,7 @@ static VOID StartProgramW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPCWS
 static VOID connectHeadset()
 {
 	// https://github.com/qwerty12/ConnectSonyBluetoothHeadset
-	WCHAR wstrCommandLine[] = L"AutoHotkey.exe \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\" /skipreconnect";
+	WCHAR wstrCommandLine[] = L"AutoHotkey.exe \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\"";
 	StartProgramW(L"C:\\Program Files\\AutoHotkey\\AutoHotkey.exe", wstrCommandLine, NULL);
 }
 
