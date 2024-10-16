@@ -191,11 +191,8 @@ static VOID SendAppCommand(CONST HWND hWnd, USHORT usAppCommand)
 static VOID PauseSpotify()
 {
 	CONST HWND hWndSpotify = SpotifyHwnd();
-	if (hWndSpotify) {
-		CONST INT iTitleLen = GetWindowTextLengthW(hWndSpotify);
-		if (iTitleLen != 7) /// "Spotify" (presumably)
-			SendAppCommand(hWndSpotify, APPCOMMAND_MEDIA_PAUSE);
-	}
+	if (hWndSpotify && GetWindowTextLengthW(hWndSpotify) != 7) // "Spotify" (presumably)
+		SendAppCommand(hWndSpotify, APPCOMMAND_MEDIA_PAUSE);
 }
 
 static VOID Send(WORD wVk, BOOL bRelease, BOOL bQuick)
@@ -352,7 +349,11 @@ static VOID handle_last_key_release(WORD last_key, BOOL bOnlyRelease)
 	}
 }
 
+#if defined(_WINDOWS)
 INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, INT nShowCmd)
+#elif defined (_CONSOLE)
+INT main(VOID)
+#endif
 {
 	HCMNOTIFICATION cmNotifyContext = 0;
 	hArrivalWaitEvent = CreateEventW(NULL, FALSE, FALSE, NULL);

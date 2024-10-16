@@ -74,14 +74,14 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <ExceptionHandling>false</ExceptionHandling>
       <CallingConvention>StdCall</CallingConvention>
       <ErrorReporting>None</ErrorReporting>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);cfgmgr32.lib;hid.lib</AdditionalDependencies>
@@ -117,14 +117,14 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <ExceptionHandling>false</ExceptionHandling>
       <CallingConvention>StdCall</CallingConvention>
       <ErrorReporting>None</ErrorReporting>
     </ClCompile>
     <Link>
-      <SubSystem>Windows</SubSystem>
+      <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <LinkErrorReporting>NoErrorReport</LinkErrorReporting>
       <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);cfgmgr32.lib;hid.lib</AdditionalDependencies>
