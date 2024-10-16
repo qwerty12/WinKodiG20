@@ -29,6 +29,7 @@
 #include <hidclass.h>
 #include <hidsdi.h>
 #include <cfgmgr32.h>
+#include <Psapi.h>
 
 static HANDLE hArrivalWaitEvent = NULL;
 
@@ -143,12 +144,58 @@ static HWND KodiHwnd()
 	return FindWindowW(L"Kodi", L"Kodi");
 }
 
-static VOID SendAppCommand(USHORT usAppCommand)
+static HWND SpotifyHwnd()
 {
-	CONST HWND hWndKodi = KodiHwnd();
-	if (!hWndKodi)
-		return;
-	SendNotifyMessage(hWndKodi, WM_APPCOMMAND, (WPARAM)hWndKodi, MAKELPARAM(0, usAppCommand | FAPPCOMMAND_OEM));
+	LPCWSTR CONST lpwszWantedClass = L"Chrome_WidgetWin_1";
+	static HWND ret = NULL;
+	if (ret) {
+		WCHAR wszClass[20];
+		if (GetClassNameW(ret, wszClass, ARRAYSIZE(wszClass)) && !wcscmp(wszClass, lpwszWantedClass))
+			return ret;
+		ret = NULL;
+	}
+
+	HWND hWndChildAfter = NULL;
+	while ((hWndChildAfter = FindWindowExW(NULL, hWndChildAfter, lpwszWantedClass, NULL))) {
+		DWORD dwProcessId;
+		WCHAR wszExeName[MAX_PATH];
+
+		if (!GetWindowThreadProcessId(hWndChildAfter, &dwProcessId))
+			continue;
+
+		HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, dwProcessId);
+		if (!hProcess)
+			continue;
+
+		if (GetProcessImageFileNameW(hProcess, wszExeName, ARRAYSIZE(wszExeName))) {
+			LPCWSTR lpwszBasename = wcsrchr(wszExeName, L'\\');
+			if (lpwszBasename && !wcscmp(lpwszBasename, L"\\Spotify.exe")) {
+				ret = hWndChildAfter;
+				CloseHandle(hProcess);
+				return ret;
+			}
+		}
+
+		CloseHandle(hProcess);
+	}
+
+	return NULL;
+}
+
+static VOID SendAppCommand(CONST HWND hWnd, USHORT usAppCommand)
+{
+	if (hWnd)
+		SendNotifyMessage(hWnd, WM_APPCOMMAND, (WPARAM)hWnd, MAKELPARAM(0, usAppCommand | FAPPCOMMAND_OEM));
+}
+
+static VOID PauseSpotify()
+{
+	CONST HWND hWndSpotify = SpotifyHwnd();
+	if (hWndSpotify) {
+		CONST INT iTitleLen = GetWindowTextLengthW(hWndSpotify);
+		if (iTitleLen != 7) /// "Spotify" (presumably)
+			SendAppCommand(hWndSpotify, APPCOMMAND_MEDIA_PAUSE);
+	}
 }
 
 static VOID Send(WORD wVk, BOOL bRelease, BOOL bQuick)
@@ -282,6 +329,7 @@ static VOID startStopKodi()
 	}
 
 	StartProgramW(L"C:\\Program Files\\Kodi\\kodi.exe", NULL, L"C:\\Program Files\\Kodi\\");
+	PauseSpotify();
 }
 
 static VOID handle_last_key_release(WORD last_key, BOOL bOnlyRelease)
@@ -344,7 +392,7 @@ INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 
 			switch (bytes_read)
 			{
-			case 0:
+			case 0: // timeout reached if dwTimeoutMs != INFINITE - key not released
 				switch (last_key)
 				{
 				case 0:
@@ -358,7 +406,7 @@ INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 					break;
 				default:
 					Send(last_key, FALSE, FALSE);
-					if (dwTimeoutMs != 100)
+					if (dwTimeoutMs != 100) // enable quick repeats
 						dwTimeoutMs = 100;
 					break;
 				}
@@ -372,14 +420,14 @@ INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 				continue;
 			}
 
-			if (buf[0] != 2 || buf[3] != 0 || buf[4] != 0)
+			if (buf[0] != 2 || buf[3] != 0 || buf[4] != 0) // usually [2] is 0, but sometimes 2 for some keys :shrug:
 				continue;
 
 			#define MAP_KEYPRESS(input, virtual_key) case input: last_key = (WORD)virtual_key; break;
 			#define MAP_LONGPRESS_CUSTOM(input, virtual_key) case input: last_key = (WORD)virtual_key; goto check_longpress;
 			#define MAP_FUNCCALL(input, func, ...) case input: func(##__VA_ARGS__); continue;
 			#define MAP_KEYPRESS_QUICK(input, virtual_key) MAP_FUNCCALL(input, Send, virtual_key, FALSE, TRUE)
-			#define MAP_KEYPRSS_APPCOMMAND(input, appcommand) MAP_FUNCCALL(input, SendAppCommand, appcommand)
+			#define MAP_KEYPRESS_APPCOMMAND(input, appcommand) MAP_FUNCCALL(input, SendAppCommand, KodiHwnd(), appcommand)
 			switch (buf[1])
 			{
 			case 0: // (any key released)
@@ -409,8 +457,8 @@ INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			MAP_FUNCCALL(48, startStopKodi) // Power
 			MAP_FUNCCALL(-69, connectHeadset) // Input
 			MAP_KEYPRESS(35, VK_HOME) // Home
-			MAP_KEYPRSS_APPCOMMAND(119, APPCOMMAND_MEDIA_REWIND) // YouTube
-			MAP_KEYPRSS_APPCOMMAND(120, APPCOMMAND_MEDIA_FAST_FORWARD) // Netflix
+			MAP_KEYPRESS_APPCOMMAND(119, APPCOMMAND_MEDIA_REWIND) // YouTube
+			MAP_KEYPRESS_APPCOMMAND(120, APPCOMMAND_MEDIA_FAST_FORWARD) // Netflix
 			MAP_KEYPRESS(105, VK_F13) // Red
 			MAP_KEYPRESS(106, VK_F14) // Green
 			default: continue;
@@ -419,7 +467,7 @@ INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
 			#undef MAP_KEYPRESS_QUICK
 			#undef MAP_FUNCCALL
 			#undef MAP_LONGPRESS_CUSTOM
-			#undef MAP_KEYPRSS_APPCOMMAND
+			#undef MAP_KEYPRESS_APPCOMMAND
 
 			if (last_key != 0) {
 				Send(last_key, FALSE, FALSE);
