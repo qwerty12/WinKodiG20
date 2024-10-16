@@ -321,7 +321,9 @@ static VOID startStopKodi()
 			SendInput(1, inputs, sizeof(*inputs));
 			SetForegroundWindow(hWndKodi);
 		}
-		Send('S', FALSE, TRUE);
+		else {
+			Send('S', FALSE, TRUE);
+		}
 		return;
 	}
 
