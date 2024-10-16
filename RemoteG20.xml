@@ -1,0 +1,46 @@
+<keymap>
+  <global>
+    <keyboard>
+      <f2>Number1</f2>
+      <f3>Number2</f3>
+      <f4>Number3</f4>
+      <f5>Number4</f5>
+      <f6>Number5</f6>
+      <f7>Number6</f7>
+      <f8>Number7</f8>
+      <f9>Number8</f9>
+      <f10>Number9</f10>
+      <f11>Number0</f11>
+      <f15>ActivateWindow(FavouritesBrowser)</f15>
+      <home mod="longpress">ActivateWindow(Home)</home>
+      <f13 mod="longpress">ActivateWindow(Videos,videodb://tvshows/titles/,return)</f13>
+    </keyboard>
+  </global>
+  <FullscreenVideo>
+    <keyboard>
+      <pageup>SkipPrevious</pageup>
+      <pagedown>SkipNext</pagedown>
+      <f15>ActivateWindow(VideoBookmarks)</f15>
+      <f15 mod="longpress">ActivateWindow(FavouritesBrowser)</f15>
+    </keyboard>
+  </FullscreenVideo>
+  <VideoOSD>
+    <keyboard>
+      <t>ShowSubtitles</t>
+      <pageup>SkipPrevious</pageup>
+      <pagedown>SkipNext</pagedown>
+      <f15>ActivateWindow(VideoBookmarks)</f15>
+    </keyboard>
+  </VideoOSD>
+  <VideoMenu>
+    <keyboard>
+      <pageup>SkipPrevious</pageup>
+      <pagedown>SkipNext</pagedown>
+    </keyboard>
+  </VideoMenu>
+  <VideoBookmarks>
+    <keyboard>
+      <f15>Back</f15>
+    </keyboard>
+  </VideoBookmarks>
+</keymap>
