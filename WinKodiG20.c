@@ -23,6 +23,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include <windows.h>
 #include <initguid.h>
@@ -45,15 +46,16 @@ static HANDLE hid_open(USHORT VendorID, USHORT ProductID, USHORT UsagePage, USHO
 	CONFIGRET cr;
 	LPWSTR device_interface_list = NULL;
 	DWORD len;
+	CONST HANDLE hHeap = GetProcessHeap();
 
 	do {
 		if ((cr = CM_Get_Device_Interface_List_SizeW(&len, (LPGUID)&GUID_DEVINTERFACE_HID, NULL, CM_GET_DEVICE_INTERFACE_LIST_PRESENT)) != CR_SUCCESS)
 			break;
 
 		if (device_interface_list)
-			HeapFree(GetProcessHeap(), 0, device_interface_list);
+			HeapFree(hHeap, 0, device_interface_list);
 
-		device_interface_list = (LPWSTR)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, len * sizeof(WCHAR));
+		device_interface_list = (LPWSTR)HeapAlloc(hHeap, HEAP_ZERO_MEMORY, len * sizeof(WCHAR));
 		if (!device_interface_list)
 			return ret;
 
@@ -92,7 +94,7 @@ static HANDLE hid_open(USHORT VendorID, USHORT ProductID, USHORT UsagePage, USHO
 		}
 	}
 
-	HeapFree(GetProcessHeap(), 0, device_interface_list);
+	HeapFree(hHeap, 0, device_interface_list);
 	return ret;
 }
 
@@ -114,8 +116,7 @@ static INT hid_read_timeout(LPVOID lpBuffer, DWORD nNumberOfBytesToRead, DWORD d
 			}
 			bOverlapped = TRUE;
 		}
-	}
-	else {
+	} else {
 		bOverlapped = TRUE;
 	}
 
@@ -147,16 +148,16 @@ static HWND KodiHwnd()
 static HWND SpotifyHwnd()
 {
 	LPCWSTR CONST lpwszWantedClass = L"Chrome_WidgetWin_1";
-	static HWND ret = NULL;
-	if (ret) {
+	static HWND hWndRet = NULL;
+	if (hWndRet) {
 		WCHAR wszClass[20];
-		if (GetClassNameW(ret, wszClass, ARRAYSIZE(wszClass)) && !wcscmp(wszClass, lpwszWantedClass))
-			return ret;
-		ret = NULL;
+		assert(ARRAYSIZE(wszClass) >= wcslen(lpwszWantedClass) + 1);
+		if (GetClassNameW(hWndRet, wszClass, ARRAYSIZE(wszClass)) && !wcscmp(wszClass, lpwszWantedClass))
+			return hWndRet;
+		hWndRet = NULL;
 	}
 
-	HWND hWndChildAfter = NULL;
-	while ((hWndChildAfter = FindWindowExW(NULL, hWndChildAfter, lpwszWantedClass, NULL))) {
+	for (HWND hWndChildAfter = NULL; (hWndChildAfter = FindWindowExW(NULL, hWndChildAfter, lpwszWantedClass, NULL));) {
 		DWORD dwProcessId;
 		WCHAR wszExeName[MAX_PATH];
 
@@ -170,9 +171,8 @@ static HWND SpotifyHwnd()
 		if (GetProcessImageFileNameW(hProcess, wszExeName, ARRAYSIZE(wszExeName))) {
 			LPCWSTR lpwszBasename = wcsrchr(wszExeName, L'\\');
 			if (lpwszBasename && !wcscmp(lpwszBasename, L"\\Spotify.exe")) {
-				ret = hWndChildAfter;
 				CloseHandle(hProcess);
-				return ret;
+				return (hWndRet = hWndChildAfter);
 			}
 		}
 
@@ -195,7 +195,7 @@ static VOID PauseSpotify()
 		SendAppCommand(hWndSpotify, APPCOMMAND_MEDIA_PAUSE);
 }
 
-static VOID Send(WORD wVk, BOOL bRelease, BOOL bQuick)
+static VOID Send(CONST WORD wVk, CONST BOOL bRelease, CONST BOOL bQuick)
 {
 	CONST INT inputCount = bQuick ? 2 : 1;
 	ZeroMemory(inputs, sizeof(*inputs) * inputCount);
@@ -203,22 +203,20 @@ static VOID Send(WORD wVk, BOOL bRelease, BOOL bQuick)
 	inputs[0].type = INPUT_KEYBOARD;
 	inputs[0].ki.wVk = wVk;
 
-	if (bQuick)
-	{
+	if (bQuick) {
 		inputs[1].type = INPUT_KEYBOARD;
 		inputs[1].ki.wVk = wVk;
 		inputs[1].ki.dwFlags |= KEYEVENTF_KEYUP;
-	}
-	else if (bRelease)
-	{
+	} else if (bRelease) {
 		inputs[0].ki.dwFlags |= KEYEVENTF_KEYUP;
 	}
 
 	SendInput(inputCount, inputs, sizeof(*inputs));
 }
 
-static VOID QuickSendMod(WORD wVk, BOOL bCtrl, BOOL bShift, BOOL bAlt) {
-	ZeroMemory(inputs, sizeof(inputs));
+static VOID QuickSendMod(CONST WORD wVk, CONST BOOL bCtrl, CONST BOOL bShift, CONST BOOL bAlt)
+{
+	ZeroMemory(inputs, sizeof(*inputs) * ((1 + !!bCtrl + !!bShift + !!bAlt) * 2));
 	INT inputCount = 0;
 
 	if (bCtrl) {
@@ -320,8 +318,7 @@ static VOID startStopKodi()
 			ZeroMemory(inputs, sizeof(*inputs));
 			SendInput(1, inputs, sizeof(*inputs));
 			SetForegroundWindow(hWndKodi);
-		}
-		else {
+		} else {
 			Send('S', FALSE, TRUE);
 		}
 		return;
@@ -331,7 +328,7 @@ static VOID startStopKodi()
 	PauseSpotify();
 }
 
-static VOID handle_last_key_release(WORD last_key, BOOL bOnlyRelease)
+static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease)
 {
 	switch (last_key)
 	{
