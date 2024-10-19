@@ -21,16 +21,28 @@
 		https://github.com/libusb/hidapi .
 ********************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <assert.h>
+#if __GNUC__
+#define GNUC_UNUSED __attribute__((__unused__))
+#else
+#define GNUC_UNUSED
+#endif
 
+// Windows Header Files
+#include <winsdkver.h>
+#define _WIN32_WINNT _WIN32_WINNT_MAXVER
+#include <sdkddkver.h>
+#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
+#define WIN32_EXTRA_LEAN
 #include <windows.h>
 #include <initguid.h>
 #include <hidclass.h>
 #include <hidsdi.h>
 #include <cfgmgr32.h>
 #include <Psapi.h>
+// C RunTime Header Files
+#include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
 
 static HANDLE hArrivalWaitEvent = NULL;
 
@@ -132,7 +144,7 @@ end_of_function:
 	return res ? (INT)numberOfBytesRead : -1;
 }
 
-static DWORD CALLBACK cmNotifyCallback(HCMNOTIFICATION hNotify, PVOID Context, CM_NOTIFY_ACTION Action, PCM_NOTIFY_EVENT_DATA EventData, DWORD EventDataSize)
+static DWORD CALLBACK cmNotifyCallback(GNUC_UNUSED HCMNOTIFICATION hNotify, GNUC_UNUSED PVOID Context, CM_NOTIFY_ACTION Action, GNUC_UNUSED PCM_NOTIFY_EVENT_DATA EventData, GNUC_UNUSED DWORD EventDataSize)
 {
 	if (Action == CM_NOTIFY_ACTION_DEVICEINTERFACEARRIVAL && hRemote == INVALID_HANDLE_VALUE)
 		SetEvent(hArrivalWaitEvent);
@@ -140,12 +152,12 @@ static DWORD CALLBACK cmNotifyCallback(HCMNOTIFICATION hNotify, PVOID Context, C
 	return ERROR_SUCCESS;
 }
 
-static HWND KodiHwnd()
+static HWND KodiHwnd(VOID)
 {
 	return FindWindowW(L"Kodi", L"Kodi");
 }
 
-static HWND SpotifyHwnd()
+static HWND SpotifyHwnd(VOID)
 {
 	LPCWSTR CONST lpwszWantedClass = L"Chrome_WidgetWin_1";
 	static HWND hWndRet = NULL;
@@ -185,10 +197,10 @@ static HWND SpotifyHwnd()
 static VOID SendAppCommand(CONST HWND hWnd, USHORT usAppCommand)
 {
 	if (hWnd)
-		SendNotifyMessage(hWnd, WM_APPCOMMAND, (WPARAM)hWnd, MAKELPARAM(0, usAppCommand | FAPPCOMMAND_OEM));
+		SendNotifyMessageW(hWnd, WM_APPCOMMAND, (WPARAM)hWnd, MAKELPARAM(0, usAppCommand | FAPPCOMMAND_OEM));
 }
 
-static VOID PauseSpotify()
+static VOID PauseSpotify(VOID)
 {
 	CONST HWND hWndSpotify = SpotifyHwnd();
 	if (hWndSpotify && GetWindowTextLengthW(hWndSpotify) != 7) // "Spotify" (presumably)
@@ -270,7 +282,7 @@ static VOID QuickSendMod(CONST WORD wVk, CONST BOOL bCtrl, CONST BOOL bShift, CO
 	SendInput(inputCount, inputs, sizeof(*inputs));
 }
 
-static VOID cycleKodiInfo()
+static VOID cycleKodiInfo(VOID)
 {
 	static INT phase_cycle = -1;
 
@@ -281,10 +293,12 @@ static VOID cycleKodiInfo()
 		QuickSendMod('O', TRUE, TRUE, FALSE);
 		if (phase_cycle == 0)
 			break;
+		// fall through
 	case 2:
 		QuickSendMod('O', FALSE, FALSE, TRUE);
 		if (phase_cycle == 1)
 			break;
+		// fall through
 	default:
 		phase_cycle = -1;
 		break;
@@ -302,14 +316,14 @@ static VOID StartProgramW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPCWS
 	CloseHandle(pi.hProcess);
 }
 
-static VOID connectHeadset()
+static VOID connectHeadset(VOID)
 {
 	// https://github.com/qwerty12/ConnectSonyBluetoothHeadset
 	WCHAR wstrCommandLine[] = L"AutoHotkey.exe \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\"";
 	StartProgramW(L"C:\\Program Files\\AutoHotkey\\AutoHotkey.exe", wstrCommandLine, NULL);
 }
 
-static VOID startStopKodi()
+static VOID startStopKodi(VOID)
 {
 	CONST HWND hWndKodi = KodiHwnd();
 	if (hWndKodi) {
@@ -349,7 +363,7 @@ static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease
 }
 
 #if defined(_WINDOWS)
-INT APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, INT nShowCmd)
+INT APIENTRY wWinMain(GNUC_UNUSED HINSTANCE hInstance, GNUC_UNUSED HINSTANCE hPrevInstance, GNUC_UNUSED LPWSTR lpCmdLine, GNUC_UNUSED INT nShowCmd)
 #elif defined (_CONSOLE)
 INT main(VOID)
 #endif
@@ -399,6 +413,7 @@ INT main(VOID)
 					break;
 				case (WORD)'I':
 					last_key = 'O';
+					// fall through
 				case (WORD)'Z':
 				case (WORD)'X':
 					Send(last_key, FALSE, TRUE);
@@ -425,7 +440,7 @@ INT main(VOID)
 
 			#define MAP_KEYPRESS(input, virtual_key) case input: last_key = (WORD)virtual_key; break;
 			#define MAP_LONGPRESS_CUSTOM(input, virtual_key) case input: last_key = (WORD)virtual_key; goto check_longpress;
-			#define MAP_FUNCCALL(input, func, ...) case input: func(##__VA_ARGS__); continue;
+			#define MAP_FUNCCALL(input, func, ...) case input: func(__VA_ARGS__); continue;
 			#define MAP_KEYPRESS_QUICK(input, virtual_key) MAP_FUNCCALL(input, Send, virtual_key, FALSE, TRUE)
 			#define MAP_KEYPRESS_APPCOMMAND(input, appcommand) MAP_FUNCCALL(input, SendAppCommand, KodiHwnd(), appcommand)
 			switch (buf[1])
