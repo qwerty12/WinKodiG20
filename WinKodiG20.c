@@ -338,7 +338,8 @@ static VOID startStopKodi(VOID)
 		return;
 	}
 
-	StartProgramW(L"C:\\Program Files\\Kodi\\kodi.exe", NULL, L"C:\\Program Files\\Kodi\\");
+	WCHAR wstrCommandLine[] = L"kodi.exe --fullscreen";
+	StartProgramW(L"C:\\Program Files\\Kodi\\kodi.exe", wstrCommandLine, L"C:\\Program Files\\Kodi\\");
 	PauseSpotify();
 }
 
