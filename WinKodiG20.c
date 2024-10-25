@@ -21,28 +21,7 @@
 		https://github.com/libusb/hidapi .
 ********************************************************/
 
-#if __GNUC__
-#define GNUC_UNUSED __attribute__((__unused__))
-#else
-#define GNUC_UNUSED
-#endif
-
-// Windows Header Files
-#include <winsdkver.h>
-#define _WIN32_WINNT _WIN32_WINNT_MAXVER
-#include <sdkddkver.h>
-#define WIN32_LEAN_AND_MEAN             // Exclude rarely-used stuff from Windows headers
-#define WIN32_EXTRA_LEAN
-#include <windows.h>
-#include <initguid.h>
-#include <hidclass.h>
-#include <hidsdi.h>
-#include <cfgmgr32.h>
-#include <Psapi.h>
-// C RunTime Header Files
-#include <stdlib.h>
-#include <stdio.h>
-#include <assert.h>
+#include "stdafx.h"
 
 static HANDLE hArrivalWaitEvent = NULL;
 
@@ -234,49 +213,49 @@ static VOID QuickSendMod(CONST WORD wVk, CONST BOOL bCtrl, CONST BOOL bShift, CO
 	if (bCtrl) {
 		inputs[inputCount].type = INPUT_KEYBOARD;
 		inputs[inputCount].ki.wVk = VK_CONTROL;
-		inputCount++;
+		++inputCount;
 	}
 
 	if (bShift) {
 		inputs[inputCount].type = INPUT_KEYBOARD;
 		inputs[inputCount].ki.wVk = VK_SHIFT;
-		inputCount++;
+		++inputCount;
 	}
 
 	if (bAlt) {
 		inputs[inputCount].type = INPUT_KEYBOARD;
 		inputs[inputCount].ki.wVk = VK_MENU;
-		inputCount++;
+		++inputCount;
 	}
 
 	inputs[inputCount].type = INPUT_KEYBOARD;
 	inputs[inputCount].ki.wVk = wVk;
-	inputCount++;
+	++inputCount;
 
 	inputs[inputCount].type = INPUT_KEYBOARD;
 	inputs[inputCount].ki.wVk = wVk;
 	inputs[inputCount].ki.dwFlags = KEYEVENTF_KEYUP;
-	inputCount++;
+	++inputCount;
 
 	if (bAlt) {
 		inputs[inputCount].type = INPUT_KEYBOARD;
 		inputs[inputCount].ki.wVk = VK_MENU;
 		inputs[inputCount].ki.dwFlags = KEYEVENTF_KEYUP;
-		inputCount++;
+		++inputCount;
 	}
 
 	if (bShift) {
 		inputs[inputCount].type = INPUT_KEYBOARD;
 		inputs[inputCount].ki.wVk = VK_SHIFT;
 		inputs[inputCount].ki.dwFlags = KEYEVENTF_KEYUP;
-		inputCount++;
+		++inputCount;
 	}
 
 	if (bCtrl) {
 		inputs[inputCount].type = INPUT_KEYBOARD;
 		inputs[inputCount].ki.wVk = VK_CONTROL;
 		inputs[inputCount].ki.dwFlags = KEYEVENTF_KEYUP;
-		inputCount++;
+		++inputCount;
 	}
 
 	SendInput(inputCount, inputs, sizeof(*inputs));
@@ -461,7 +440,7 @@ INT main(VOID)
 			MAP_KEYPRESS(69, VK_RIGHT) // D-pad right
 			MAP_KEYPRESS_QUICK(-106, VK_MEDIA_PLAY_PAUSE) // Settings
 			MAP_KEYPRESS(-100, VK_VOLUME_UP) // Arrow up
-			MAP_KEYPRESS_QUICK(-99, VK_VOLUME_DOWN) // Arrow down
+			MAP_KEYPRESS(-99, VK_VOLUME_DOWN) // Arrow down
 			MAP_KEYPRESS(107, VK_TAB) // Blue
 			MAP_KEYPRESS(97, 'T') // Subtitles
 			MAP_LONGPRESS_CUSTOM(-67, 'I') // Info
@@ -473,17 +452,12 @@ INT main(VOID)
 			MAP_FUNCCALL(48, startStopKodi) // Power
 			MAP_FUNCCALL(-69, connectHeadset) // Input
 			MAP_KEYPRESS(35, VK_HOME) // Home
-			MAP_KEYPRESS_APPCOMMAND(119, APPCOMMAND_MEDIA_REWIND) // YouTube
-			MAP_KEYPRESS_APPCOMMAND(120, APPCOMMAND_MEDIA_FAST_FORWARD) // Netflix
+			MAP_FUNCCALL(119, SetBrightness, -10) // YouTube
+			MAP_FUNCCALL(120, SetBrightness, 10) // Netflix
 			MAP_KEYPRESS(105, VK_F13) // Red
 			MAP_KEYPRESS(106, VK_F14) // Green
 			default: continue;
 			}
-			#undef MAP_KEYPRESS
-			#undef MAP_KEYPRESS_QUICK
-			#undef MAP_FUNCCALL
-			#undef MAP_LONGPRESS_CUSTOM
-			#undef MAP_KEYPRESS_APPCOMMAND
 
 			if (last_key != 0) {
 				Send(last_key, FALSE, FALSE);
@@ -501,5 +475,6 @@ check_longpress:
 	CM_Unregister_Notification(cmNotifyContext);
 	CloseHandle(hArrivalWaitEvent);
 	CloseHandle(overlapped.hEvent);
+	ClearPhysicalMonitors();
 	return EXIT_SUCCESS;
 }

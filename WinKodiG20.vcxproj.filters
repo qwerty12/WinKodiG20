@@ -18,5 +18,13 @@
     <ClCompile Include="WinKodiG20.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="BrightnessControl.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="stdafx.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
