@@ -326,6 +326,10 @@ static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease
 {
 	switch (last_key)
 	{
+	case VK_SLEEP:
+		if (!bOnlyRelease)
+			startStopKodi();
+		break;
 	case (WORD)'I':
 		if (!bOnlyRelease)
 			Send(last_key, FALSE, TRUE);
@@ -348,7 +352,7 @@ INT APIENTRY wWinMain(GNUC_UNUSED HINSTANCE hInstance, GNUC_UNUSED HINSTANCE hPr
 INT main(VOID)
 #endif
 {
-	HCMNOTIFICATION cmNotifyContext = 0;
+	HCMNOTIFICATION cmNotifyContext = NULL;
 	hArrivalWaitEvent = CreateEventW(NULL, FALSE, FALSE, NULL);
 	overlapped.hEvent = CreateEventW(NULL, TRUE, FALSE, NULL);
 
@@ -391,6 +395,14 @@ INT main(VOID)
 				{
 				case 0:
 					break;
+				case VK_SLEEP:
+				{
+					CONST HWND hWndKodi = KodiHwnd();
+					if (hWndKodi)
+						ShowWindow(hWndKodi, SW_MINIMIZE);
+					last_key = 0;
+					break;
+				}
 				case (WORD)'I':
 					last_key = 'O';
 					// fall through
@@ -449,7 +461,7 @@ INT main(VOID)
 			MAP_KEYPRESS(121, VK_PRIOR) // Prime Video
 			MAP_KEYPRESS(42, VK_F15) // Bookmarks
 			MAP_LONGPRESS_CUSTOM(108, 'Z') // Yellow
-			MAP_FUNCCALL(48, startStopKodi) // Power
+			MAP_LONGPRESS_CUSTOM(48, VK_SLEEP) // Power
 			MAP_FUNCCALL(-69, connectHeadset) // Input
 			MAP_KEYPRESS(35, VK_HOME) // Home
 			MAP_FUNCCALL(119, SetBrightness, -10) // YouTube

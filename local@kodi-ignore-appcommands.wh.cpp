@@ -62,7 +62,7 @@ static BOOL SetWindowSubclassFromAnyThread(HWND hWnd,
         return SetWindowSubclass(hWnd, pfnSubclass, uIdSubclass, dwRefData);
     }
 
-    HHOOK hook = SetWindowsHookEx(WH_CALLWNDPROC, CallWndProcForWindowSubclass,
+    HHOOK hook = SetWindowsHookExW(WH_CALLWNDPROC, CallWndProcForWindowSubclass,
                                   nullptr, dwThreadId);
     if (!hook) {
         return FALSE;
@@ -73,7 +73,7 @@ static BOOL SetWindowSubclassFromAnyThread(HWND hWnd,
     param.uIdSubclass = uIdSubclass;
     param.dwRefData = dwRefData;
     param.result = FALSE;
-    SendMessage(hWnd, g_subclassRegisteredMsg, TRUE, (WPARAM)&param);
+    SendMessageW(hWnd, g_subclassRegisteredMsg, TRUE, (WPARAM)&param);
 
     UnhookWindowsHookEx(hook);
 
@@ -114,7 +114,7 @@ LRESULT CALLBACK KodiWindowSubclassProc(_In_ HWND hWnd,
 
 static bool IsKodiWindow(HWND hWnd) {
     WCHAR szClassName[32];
-    if (!GetClassName(hWnd, szClassName, ARRAYSIZE(szClassName)) ||
+    if (!GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName)) ||
         wcscmp(szClassName, L"Kodi") != 0) {
         return false;
     }
@@ -177,14 +177,20 @@ DWORD WINAPI InitiateShutdownWHook(LPWSTR lpMachineName,
                                    DWORD dwGracePeriod,
                                    DWORD dwShutdownFlags,
                                    DWORD dwReason) {
-    return SetSuspendState(FALSE, TRUE, TRUE) ? ERROR_SUCCESS : ERROR_ACCESS_DENIED;
+    if (dwShutdownFlags & (SHUTDOWN_POWEROFF | SHUTDOWN_RESTART)) {
+        if (SetSuspendState(FALSE, TRUE, TRUE)) {
+            if (g_kodiWnd)
+                PostMessageW(g_kodiWnd, WM_CLOSE, 0, 0);
+            return ERROR_SUCCESS;
+        }
+    }
+    return ERROR_ACCESS_DENIED;
 }
 
 BOOL Wh_ModInit() {
     Wh_Log(L">");
 
-    Wh_SetFunctionHook((void*)CreateWindowExW, (void*)CreateWindowExWHook,
-                       (void**)&pOriginalCreateWindowExW);
+    Wh_SetFunctionHook((void*)CreateWindowExW, (void*)CreateWindowExWHook, (void**)&pOriginalCreateWindowExW);
 
     Wh_SetFunctionHook((void*)InitiateShutdownW, (void*)InitiateShutdownWHook, NULL);
 
@@ -201,6 +207,6 @@ void Wh_ModUninit() {
     Wh_Log(L">");
 
     if (g_kodiWnd) {
-        SendMessage(g_kodiWnd, g_subclassRegisteredMsg, FALSE, 0);
+        SendMessageW(g_kodiWnd, g_subclassRegisteredMsg, FALSE, 0);
     }
 }
