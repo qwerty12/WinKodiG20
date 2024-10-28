@@ -183,7 +183,7 @@ static VOID PauseSpotify(VOID)
 {
 	CONST HWND hWndSpotify = SpotifyHwnd();
 	if (hWndSpotify && GetWindowTextLengthW(hWndSpotify) != 7) // "Spotify" (presumably)
-		SendAppCommand(hWndSpotify, APPCOMMAND_MEDIA_PAUSE);
+		SendAppCommand(hWndSpotify, APPCOMMAND_MEDIA_STOP);
 }
 
 static VOID Send(CONST WORD wVk, CONST BOOL bRelease, CONST BOOL bQuick)
