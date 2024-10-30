@@ -295,11 +295,17 @@ static VOID StartProgramW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPCWS
 	CloseHandle(pi.hProcess);
 }
 
-static VOID connectHeadset(VOID)
+static VOID connectHeadset(BOOL bSkipReconnect)
 {
 	// https://github.com/qwerty12/ConnectSonyBluetoothHeadset
-	WCHAR wstrCommandLine[] = L"AutoHotkey.exe \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\"";
-	StartProgramW(L"C:\\Program Files\\AutoHotkey\\AutoHotkey.exe", wstrCommandLine, NULL);
+	LPCWSTR CONST lpApplicationName = L"C:\\Program Files\\AutoHotkey\\AutoHotkey.exe";
+	if (bSkipReconnect) {
+		WCHAR wstrCommandLine[] = L"AutoHotkey.exe \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\" /skipreconnect";
+		StartProgramW(lpApplicationName, wstrCommandLine, NULL);
+	} else {
+		WCHAR wstrCommandLine[] = L"AutoHotkey.exe /restart \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\"";
+		StartProgramW(lpApplicationName, wstrCommandLine, NULL);
+	}
 }
 
 static VOID startStopKodi(VOID)
@@ -329,6 +335,10 @@ static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease
 	case VK_SLEEP:
 		if (!bOnlyRelease)
 			startStopKodi();
+		break;
+	case VK_LAUNCH_MEDIA_SELECT:
+		if (!bOnlyRelease)
+			connectHeadset(TRUE);
 		break;
 	case (WORD)'I':
 		if (!bOnlyRelease)
@@ -403,6 +413,9 @@ INT main(VOID)
 					last_key = 0;
 					break;
 				}
+				case VK_LAUNCH_MEDIA_SELECT:
+					connectHeadset(FALSE);
+					break;
 				case (WORD)'I':
 					last_key = 'O';
 					// fall through
@@ -462,7 +475,7 @@ INT main(VOID)
 			MAP_KEYPRESS(42, VK_F15) // Bookmarks
 			MAP_LONGPRESS_CUSTOM(108, 'Z') // Yellow
 			MAP_LONGPRESS_CUSTOM(48, VK_SLEEP) // Power
-			MAP_FUNCCALL(-69, connectHeadset) // Input
+			MAP_LONGPRESS_CUSTOM(-69, VK_LAUNCH_MEDIA_SELECT) // Input
 			MAP_KEYPRESS(35, VK_HOME) // Home
 			MAP_FUNCCALL(119, SetBrightness, -10) // YouTube
 			MAP_FUNCCALL(120, SetBrightness, 10) // Netflix
