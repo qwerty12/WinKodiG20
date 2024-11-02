@@ -6,7 +6,7 @@ static LPPHYSICAL_MONITOR lpPhysicalMonitors = NULL;
 VOID ClearPhysicalMonitors(VOID)
 {
 	if (lpPhysicalMonitors) {
-		if (cPhysicalMonitors)
+		if (LIKELY(cPhysicalMonitors))
 			DestroyPhysicalMonitors(cPhysicalMonitors, lpPhysicalMonitors);
 		HeapFree(GetProcessHeap(), 0, lpPhysicalMonitors);
 		lpPhysicalMonitors = NULL;
@@ -17,7 +17,7 @@ VOID ClearPhysicalMonitors(VOID)
 
 static VOID PopulatePhysicalPrimaryMonitor(VOID)
 {
-	if (lpPhysicalMonitors)
+	if (UNLIKELY(lpPhysicalMonitors))
 		return;
 
 	CONST HMONITOR hMonitor = MonitorFromWindow(NULL, MONITOR_DEFAULTTOPRIMARY);
@@ -28,10 +28,10 @@ static VOID PopulatePhysicalPrimaryMonitor(VOID)
 		return;
 
 	lpPhysicalMonitors = (LPPHYSICAL_MONITOR)HeapAlloc(GetProcessHeap(), 0, sizeof(PHYSICAL_MONITOR) * cPhysicalMonitors);
-	if (!lpPhysicalMonitors)
+	if (UNLIKELY(!lpPhysicalMonitors))
 		return;
 
-	if (!GetPhysicalMonitorsFromHMONITOR(hMonitor, cPhysicalMonitors, lpPhysicalMonitors)) {
+	if (UNLIKELY(!GetPhysicalMonitorsFromHMONITOR(hMonitor, cPhysicalMonitors, lpPhysicalMonitors))) {
 		cPhysicalMonitors = 0;
 		ClearPhysicalMonitors();
 	}
@@ -44,11 +44,11 @@ VOID SetBrightness(INT iIncOrDecrement)
 	if (!lpPhysicalMonitors || !GetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, &dwMinimumBrightness, &dwCurrentBrightness, &dwMaximumBrightness)) {
 		ClearPhysicalMonitors();
 		PopulatePhysicalPrimaryMonitor();
-		if (!lpPhysicalMonitors || !GetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, &dwMinimumBrightness, &dwCurrentBrightness, &dwMaximumBrightness))
+		if (UNLIKELY(!lpPhysicalMonitors || !GetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, &dwMinimumBrightness, &dwCurrentBrightness, &dwMaximumBrightness)))
 			return;
 	}
 
 	CONST DWORD dwNewBrightness = CLAMP((INT)dwCurrentBrightness + iIncOrDecrement, (INT)dwMinimumBrightness, (INT)dwMaximumBrightness);
-	if (dwNewBrightness != dwCurrentBrightness)
+	if (LIKELY(dwNewBrightness != dwCurrentBrightness))
 		SetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, dwNewBrightness);
 }

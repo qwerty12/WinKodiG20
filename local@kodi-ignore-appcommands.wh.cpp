@@ -178,11 +178,10 @@ DWORD WINAPI InitiateShutdownWHook(LPWSTR lpMachineName,
                                    DWORD dwShutdownFlags,
                                    DWORD dwReason) {
     if (dwShutdownFlags & (SHUTDOWN_POWEROFF | SHUTDOWN_RESTART)) {
-        if (SetSuspendState(FALSE, TRUE, TRUE)) {
-            if (g_kodiWnd)
-                PostMessageW(g_kodiWnd, WM_CLOSE, 0, 0);
+        if (g_kodiWnd)
+            PostMessageW(g_kodiWnd, WM_CLOSE, 0, 0);
+        if (SetSuspendState(FALSE, TRUE, TRUE))
             return ERROR_SUCCESS;
-        }
     }
     return ERROR_ACCESS_DENIED;
 }
@@ -191,7 +190,6 @@ BOOL Wh_ModInit() {
     Wh_Log(L">");
 
     Wh_SetFunctionHook((void*)CreateWindowExW, (void*)CreateWindowExWHook, (void**)&pOriginalCreateWindowExW);
-
     Wh_SetFunctionHook((void*)InitiateShutdownW, (void*)InitiateShutdownWHook, NULL);
 
     return TRUE;

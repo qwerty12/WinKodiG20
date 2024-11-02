@@ -47,16 +47,16 @@ static HANDLE hid_open(USHORT VendorID, USHORT ProductID, USHORT UsagePage, USHO
 			HeapFree(hHeap, 0, device_interface_list);
 
 		device_interface_list = (LPWSTR)HeapAlloc(hHeap, HEAP_ZERO_MEMORY, len * sizeof(WCHAR));
-		if (!device_interface_list)
+		if (UNLIKELY(!device_interface_list))
 			return ret;
 
 		cr = CM_Get_Device_Interface_ListW((LPGUID)&GUID_DEVINTERFACE_HID, NULL, device_interface_list, len, CM_GET_DEVICE_INTERFACE_LIST_PRESENT);
 	} while (cr == CR_BUFFER_SMALL);
 
-	if (cr == CR_SUCCESS) {
+	if (LIKELY(cr == CR_SUCCESS)) {
 		for (LPWSTR device_interface = device_interface_list; *device_interface; device_interface += wcslen(device_interface) + 1) {
 			HIDD_ATTRIBUTES attrib;
-			HANDLE device_handle = CreateFileW(device_interface, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+			CONST HANDLE device_handle = CreateFileW(device_interface, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
 
 			if (device_handle == INVALID_HANDLE_VALUE)
 				continue;
@@ -64,11 +64,11 @@ static HANDLE hid_open(USHORT VendorID, USHORT ProductID, USHORT UsagePage, USHO
 			attrib.Size = sizeof(HIDD_ATTRIBUTES);
 			if (HidD_GetAttributes(device_handle, &attrib) && attrib.VendorID == VendorID && attrib.ProductID == ProductID) {
 				PHIDP_PREPARSED_DATA pp_data;
-				if (HidD_GetPreparsedData(device_handle, &pp_data)) {
+				if (LIKELY(HidD_GetPreparsedData(device_handle, &pp_data))) {
 					HIDP_CAPS caps;
-					if (HidP_GetCaps(pp_data, &caps) == HIDP_STATUS_SUCCESS) {
+					if (LIKELY(HidP_GetCaps(pp_data, &caps) == HIDP_STATUS_SUCCESS)) {
 						if (caps.UsagePage == UsagePage && caps.Usage == Usage) {
-							if (caps.InputReportByteLength != ExpectedInputReportByteLength)
+							if (UNLIKELY(caps.InputReportByteLength != ExpectedInputReportByteLength))
 								ExitProcess(EXIT_FAILURE);
 							ret = device_handle;
 						}
@@ -143,7 +143,7 @@ static HWND SpotifyHwnd(VOID)
 	if (hWndRet) {
 		WCHAR wszClass[20];
 		assert(ARRAYSIZE(wszClass) >= wcslen(lpwszWantedClass) + 1);
-		if (GetClassNameW(hWndRet, wszClass, ARRAYSIZE(wszClass)) && !wcscmp(wszClass, lpwszWantedClass))
+		if (GetClassNameW(hWndRet, wszClass, ARRAYSIZE(wszClass)) && LIKELY(!wcscmp(wszClass, lpwszWantedClass)))
 			return hWndRet;
 		hWndRet = NULL;
 	}
@@ -152,16 +152,16 @@ static HWND SpotifyHwnd(VOID)
 		DWORD dwProcessId;
 		WCHAR wszExeName[MAX_PATH];
 
-		if (!GetWindowThreadProcessId(hWndChildAfter, &dwProcessId))
+		if (UNLIKELY(!GetWindowThreadProcessId(hWndChildAfter, &dwProcessId)))
 			continue;
 
-		HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, dwProcessId);
+		CONST HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, dwProcessId);
 		if (!hProcess)
 			continue;
 
-		if (GetProcessImageFileNameW(hProcess, wszExeName, ARRAYSIZE(wszExeName))) {
+		if (LIKELY(GetProcessImageFileNameW(hProcess, wszExeName, ARRAYSIZE(wszExeName)))) {
 			LPCWSTR lpwszBasename = wcsrchr(wszExeName, L'\\');
-			if (lpwszBasename && !wcscmp(lpwszBasename, L"\\Spotify.exe")) {
+			if (LIKELY(lpwszBasename) && !wcscmp(lpwszBasename, L"\\Spotify.exe")) {
 				CloseHandle(hProcess);
 				return (hWndRet = hWndChildAfter);
 			}
@@ -175,7 +175,7 @@ static HWND SpotifyHwnd(VOID)
 
 static VOID SendAppCommand(CONST HWND hWnd, USHORT usAppCommand)
 {
-	if (hWnd)
+	if (LIKELY(hWnd))
 		SendNotifyMessageW(hWnd, WM_APPCOMMAND, (WPARAM)hWnd, MAKELPARAM(0, usAppCommand | FAPPCOMMAND_OEM));
 }
 
@@ -298,13 +298,50 @@ static VOID StartProgramW(LPCWSTR lpApplicationName, LPWSTR lpCommandLine, LPCWS
 static VOID connectHeadset(BOOL bSkipReconnect)
 {
 	// https://github.com/qwerty12/ConnectSonyBluetoothHeadset
-	LPCWSTR CONST lpApplicationName = L"C:\\Program Files\\AutoHotkey\\AutoHotkey.exe";
-	if (bSkipReconnect) {
-		WCHAR wstrCommandLine[] = L"AutoHotkey.exe \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\" /skipreconnect";
-		StartProgramW(lpApplicationName, wstrCommandLine, NULL);
+	#define AUTOHOTKEY_EXE_BASENAME L"AutoHotkey.exe"
+	#define AUTOHOTKEY_COMMON_START AUTOHOTKEY_EXE_BASENAME L" /ErrorStdOut "
+	#define CONNECTSONYHEADSET_PATH L"\"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\""
+	LPCWSTR CONST lpApplicationName = L"C:\\Program Files\\AutoHotkey\\" AUTOHOTKEY_EXE_BASENAME;
+	if (bSkipReconnect)
+		StartProgramW(lpApplicationName, (WCHAR[]) { AUTOHOTKEY_COMMON_START CONNECTSONYHEADSET_PATH L" /skipreconnect" }, NULL);
+	else
+		StartProgramW(lpApplicationName, (WCHAR[]) { AUTOHOTKEY_COMMON_START L"/restart " CONNECTSONYHEADSET_PATH }, NULL);
+}
+
+static VOID minimiseTerminateKodi(VOID)
+{
+	HWND hWndKodi = KodiHwnd();
+	if (UNLIKELY(!hWndKodi))
+		return;
+
+	if (LIKELY(!IsHungAppWindow(hWndKodi))) {
+		ShowWindow(hWndKodi, SW_MINIMIZE);
 	} else {
-		WCHAR wstrCommandLine[] = L"AutoHotkey.exe /restart \"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\"";
-		StartProgramW(lpApplicationName, wstrCommandLine, NULL);
+		static HWND (WINAPI *HungWindowFromGhostWindow)(HWND) = NULL;
+		if (!HungWindowFromGhostWindow) {
+#if __GNUC__
+			#pragma GCC diagnostic push
+			#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+#endif
+			*(FARPROC*)&HungWindowFromGhostWindow = GetProcAddress(GetModuleHandleW(L"user32.dll"), "HungWindowFromGhostWindow");
+#if __GNUC__
+			#pragma GCC diagnostic pop
+#endif
+		}
+
+		CONST HWND hWndAntiGhost = HungWindowFromGhostWindow(hWndKodi);
+		if (hWndAntiGhost)
+			hWndKodi = hWndAntiGhost;
+
+		DWORD dwProcessId;
+		if (UNLIKELY(!GetWindowThreadProcessId(hWndKodi, &dwProcessId)))
+			return;
+
+		CONST HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, dwProcessId);
+		if (UNLIKELY(!hProcess))
+			return;
+		TerminateProcess(hProcess, EXIT_FAILURE);
+		CloseHandle(hProcess);
 	}
 }
 
@@ -323,8 +360,7 @@ static VOID startStopKodi(VOID)
 		return;
 	}
 
-	WCHAR wstrCommandLine[] = L"kodi.exe --fullscreen";
-	StartProgramW(L"C:\\Program Files\\Kodi\\kodi.exe", wstrCommandLine, L"C:\\Program Files\\Kodi\\");
+	StartProgramW(L"C:\\Program Files\\Kodi\\kodi.exe", (WCHAR[]) { L"kodi.exe --fullscreen" }, L"C:\\Program Files\\Kodi\\");
 	PauseSpotify();
 }
 
@@ -333,19 +369,19 @@ static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease
 	switch (last_key)
 	{
 	case VK_SLEEP:
-		if (!bOnlyRelease)
+		if (LIKELY(!bOnlyRelease))
 			startStopKodi();
 		break;
 	case VK_LAUNCH_MEDIA_SELECT:
-		if (!bOnlyRelease)
+		if (LIKELY(!bOnlyRelease))
 			connectHeadset(TRUE);
 		break;
 	case (WORD)'I':
-		if (!bOnlyRelease)
+		if (LIKELY(!bOnlyRelease))
 			Send(last_key, FALSE, TRUE);
 		break;
 	case (WORD)'Z':
-		if (!bOnlyRelease)
+		if (LIKELY(!bOnlyRelease))
 			cycleKodiInfo();
 		break;
 	case (WORD)'X':
@@ -376,10 +412,10 @@ INT main(VOID)
 		ResetEvent(hArrivalWaitEvent);
 		hRemote = hid_open(0x0957, 0x0007, 0x000c, 0x0001, sizeof(buf));
 		if (hRemote == INVALID_HANDLE_VALUE) {
-			if (!cmNotifyContext && CM_Register_Notification(&cmNotifyFilter, NULL, cmNotifyCallback, &cmNotifyContext) != CR_SUCCESS)
+			if (!cmNotifyContext && UNLIKELY(CM_Register_Notification(&cmNotifyFilter, NULL, cmNotifyCallback, &cmNotifyContext) != CR_SUCCESS))
 				return EXIT_FAILURE;
 
-			if (WaitForSingleObject(hArrivalWaitEvent, INFINITE) != WAIT_OBJECT_0)
+			if (UNLIKELY(WaitForSingleObject(hArrivalWaitEvent, INFINITE) != WAIT_OBJECT_0))
 				return EXIT_FAILURE;
 
 			continue;
@@ -406,14 +442,11 @@ INT main(VOID)
 				case 0:
 					break;
 				case VK_SLEEP:
-				{
-					CONST HWND hWndKodi = KodiHwnd();
-					if (hWndKodi)
-						ShowWindow(hWndKodi, SW_MINIMIZE);
 					last_key = 0;
+					minimiseTerminateKodi();
 					break;
-				}
 				case VK_LAUNCH_MEDIA_SELECT:
+					last_key = 0;
 					connectHeadset(FALSE);
 					break;
 				case (WORD)'I':
@@ -440,7 +473,7 @@ INT main(VOID)
 				continue;
 			}
 
-			if (buf[0] != 2 || buf[3] != 0 || buf[4] != 0) // usually [2] is 0, but sometimes 2 for some keys :shrug:
+			if (UNLIKELY(buf[0] != 2 || buf[3] != 0 || buf[4] != 0)) // usually [2] is 0, but sometimes 2 for some keys :shrug:
 				continue;
 
 			#define MAP_KEYPRESS(input, virtual_key) case input: last_key = (WORD)virtual_key; break;
@@ -484,7 +517,7 @@ INT main(VOID)
 			default: continue;
 			}
 
-			if (last_key != 0) {
+			if (LIKELY(last_key != 0)) {
 				Send(last_key, FALSE, FALSE);
 check_longpress:
 				dwTimeoutMs = 500;

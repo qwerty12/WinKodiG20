@@ -2,8 +2,12 @@
 
 #if __GNUC__
 #define GNUC_UNUSED __attribute__((__unused__))
+#define LIKELY(exp) __builtin_expect(!!(exp), 1)
+#define UNLIKELY(exp) __builtin_expect(!!(exp), 0)
 #else
 #define GNUC_UNUSED
+#define LIKELY(exp) exp
+#define UNLIKELY(exp) exp
 #endif
 
 // Windows Header Files

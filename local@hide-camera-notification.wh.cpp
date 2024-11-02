@@ -6,6 +6,7 @@
 // @author          qwerty12
 // @github          https://github.com/qwerty12
 // @include         explorer.exe
+// @architecture    x86-64
 // ==/WindhawkMod==
 
 // Thanks to https://github.com/ramensoftware/windhawk-mods/blob/main/mods/classic-clock-button-behavior.wh.cpp
