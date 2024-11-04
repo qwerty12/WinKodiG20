@@ -197,9 +197,9 @@ static VOID Send(CONST WORD wVk, CONST BOOL bRelease, CONST BOOL bQuick)
 	if (bQuick) {
 		inputs[1].type = INPUT_KEYBOARD;
 		inputs[1].ki.wVk = wVk;
-		inputs[1].ki.dwFlags |= KEYEVENTF_KEYUP;
+		inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
 	} else if (bRelease) {
-		inputs[0].ki.dwFlags |= KEYEVENTF_KEYUP;
+		inputs[0].ki.dwFlags = KEYEVENTF_KEYUP;
 	}
 
 	SendInput(inputCount, inputs, sizeof(*inputs));

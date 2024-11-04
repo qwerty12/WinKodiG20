@@ -4,10 +4,10 @@
 // @description     So certain buttons on my remote don't trigger actions, oh and disable shutdown/reboot too
 // @version         1.0
 // @include         kodi.exe
-// @compilerOptions -lcomctl32 -lpowrprof
+// @compilerOptions -lcomctl32 -ldxva2
 // ==/WindhawkMod==
 
-// Code ripped entirely from m417z
+// Window messaging/subclassing code ripped entirely from m417z
 // Source code is published under The GNU General Public License v3.0.
 //
 // Look here for the original code:
@@ -16,6 +16,8 @@
 #include <commctrl.h>
 #include <windows.h>
 #include <powrprof.h>
+#include <lowlevelmonitorconfigurationapi.h>
+#include <physicalmonitorenumerationapi.h>
 #include <cwchar>
 
 static HWND g_kodiWnd;
@@ -172,25 +174,140 @@ HWND WINAPI CreateWindowExWHook(DWORD dwExStyle,
     return hWnd;
 }
 
+static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdc, LPRECT lprcClip, LPARAM dwData) {
+    DWORD cPhysicalMonitors = 0;
+    PHYSICAL_MONITOR physicalMonitors[8]; // CBA with allocing for an unlikely case
+
+    if (!GetNumberOfPhysicalMonitorsFromHMONITOR(hMonitor, &cPhysicalMonitors))
+        return TRUE;
+
+    if (cPhysicalMonitors == 0 && cPhysicalMonitors > ARRAYSIZE(physicalMonitors))
+        return TRUE;
+
+    if (GetPhysicalMonitorsFromHMONITOR(hMonitor, cPhysicalMonitors, physicalMonitors)) {
+        for (DWORD i = 0; i < cPhysicalMonitors; ++i) {
+            CONST HANDLE hPhysicalMonitor = physicalMonitors[i].hPhysicalMonitor;
+            //SetVCPFeature(hPhysicalMonitor, 0xD6, 0x04); // Off
+            for (DWORD j = 0; j < 3; ++j) {
+                if (!SetVCPFeature(hPhysicalMonitor, 0xD6, 0x05)) // HardOff
+                    break;
+            }
+            DestroyPhysicalMonitor(hPhysicalMonitor);
+        }
+    }
+
+    return TRUE;
+}
+
+using SetSuspendState_t = decltype(&SetSuspendState);
+SetSuspendState_t pOriginalSetSuspendState;
+BOOLEAN WINAPI SetSuspendStateHook(BOOLEAN bHibernate,
+                                   BOOLEAN bForce,
+                                   BOOLEAN bWakeupEventsDisabled) {
+    if (!bHibernate && bForce && !bWakeupEventsDisabled) {
+        INPUT inputs[2];
+        ZeroMemory(inputs, sizeof(inputs));
+
+        inputs[0].type = inputs[1].type = INPUT_KEYBOARD;
+        inputs[0].ki.wVk = inputs[1].ki.wVk = VK_ESCAPE;
+        inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
+
+        EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, 0);
+    	SendInput(ARRAYSIZE(inputs), inputs, sizeof(*inputs));
+    }
+
+    return FALSE;
+}
+
 DWORD WINAPI InitiateShutdownWHook(LPWSTR lpMachineName,
                                    LPWSTR lpMessage,
                                    DWORD dwGracePeriod,
                                    DWORD dwShutdownFlags,
                                    DWORD dwReason) {
     if (dwShutdownFlags & (SHUTDOWN_POWEROFF | SHUTDOWN_RESTART)) {
-        if (g_kodiWnd)
-            PostMessageW(g_kodiWnd, WM_CLOSE, 0, 0);
-        if (SetSuspendState(FALSE, TRUE, TRUE))
-            return ERROR_SUCCESS;
+        //if (g_kodiWnd)
+        //    PostMessageW(g_kodiWnd, WM_CLOSE, 0, 0);
+        pOriginalSetSuspendState(FALSE, TRUE, TRUE);
+        return ERROR_SUCCESS;
     }
     return ERROR_ACCESS_DENIED;
+}
+
+static HANDLE hStringsPo = INVALID_HANDLE_VALUE;
+using CreateFileW_t = decltype(&CreateFileW);
+CreateFileW_t pOriginalCreateFileW;
+HANDLE WINAPI CreateFileWHook(
+    LPCWSTR lpFileName,
+    DWORD dwDesiredAccess,
+    DWORD dwShareMode,
+    LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+    DWORD dwCreationDisposition,
+    DWORD dwFlagsAndAttributes,
+    HANDLE hTemplateFile)
+{
+    CONST HANDLE hRet = pOriginalCreateFileW(
+        lpFileName,
+        dwDesiredAccess,
+        dwShareMode,
+        lpSecurityAttributes,
+        dwCreationDisposition,
+        dwFlagsAndAttributes,
+        hTemplateFile
+    );
+
+    if (hStringsPo == INVALID_HANDLE_VALUE && hRet != INVALID_HANDLE_VALUE &&
+        dwCreationDisposition == OPEN_EXISTING &&
+        dwDesiredAccess == GENERIC_READ &&
+        dwShareMode & (FILE_SHARE_READ | FILE_SHARE_WRITE) &&
+        dwFlagsAndAttributes == FILE_ATTRIBUTE_NORMAL &&
+        !lpSecurityAttributes && !hTemplateFile &&
+        wcscmp(lpFileName, L"\\\\?\\C:\\Program Files\\Kodi\\addons\\resource.language.en_gb\\resources\\strings.po") == 0)
+    {
+        hStringsPo = hRet;
+        Wh_RemoveFunctionHook((void*)CreateFileW);
+    }
+
+    return hRet;
+}
+
+using ReadFile_t = decltype(&ReadFile);
+ReadFile_t pOriginalReadFile;
+WINBOOL WINAPI ReadFileHook(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped)
+{
+    CONST BOOL bRet = pOriginalReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
+    if (hStringsPo != INVALID_HANDLE_VALUE && bRet && hFile == hStringsPo) {
+        struct
+        {
+            LPCSTR lpTarget;
+            LPCSTR lpReplacement;
+        } CONST replacements[] = {
+            { R"(msgid "Power off system")", R"(msgid " Suspend system ")" },
+            { R"(msgid "Reboot")", R"(msgid "Susp'd")" },
+            { R"(msgid "Suspend")", R"(msgid "DispOff")" },
+        };
+        for (SIZE_T i = 0; i < ARRAYSIZE(replacements); ++i) {
+            LPSTR lpSub = strstr((char*)lpBuffer, replacements[i].lpTarget);
+            if (lpSub)
+                memcpy(lpSub, replacements[i].lpReplacement, strlen(replacements[i].lpReplacement));
+        }
+
+        Wh_RemoveFunctionHook((void*)ReadFile);
+        Wh_ApplyHookOperations();
+        hStringsPo = INVALID_HANDLE_VALUE;
+    }
+
+    return bRet;
 }
 
 BOOL Wh_ModInit() {
     Wh_Log(L">");
 
     Wh_SetFunctionHook((void*)CreateWindowExW, (void*)CreateWindowExWHook, (void**)&pOriginalCreateWindowExW);
-    Wh_SetFunctionHook((void*)InitiateShutdownW, (void*)InitiateShutdownWHook, NULL);
+    Wh_SetFunctionHook((void*)GetProcAddress(LoadLibraryExW(L"powrprof.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32), "SetSuspendState"), (void*)SetSuspendStateHook, (void**)&pOriginalSetSuspendState);
+    Wh_SetFunctionHook((void*)InitiateShutdownW, (void*)InitiateShutdownWHook, nullptr);
+
+    Wh_SetFunctionHook((void*)CreateFileW, (void*)CreateFileWHook, (void**)&pOriginalCreateFileW);
+    Wh_SetFunctionHook((void*)ReadFile, (void*)ReadFileHook, (void**)&pOriginalReadFile);
 
     return TRUE;
 }
