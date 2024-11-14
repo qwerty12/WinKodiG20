@@ -2,7 +2,7 @@ SRC = WinKodiG20.c BrightnessControl.c
 LIBS = -lcfgmgr32 -lhid -ldxva2
 MANIFEST = WinKodiG20.exe.manifest
 CFLAGS = -Wall -Wextra -fuse-ld=lld -Wl,/manifest:EMBED -Wl,/manifestuac:no -Wl,/manifestinput:$(MANIFEST)
-CFLAGS_OPT = -s -mwindows -municode -D_WINDOWS -DNDEBUG -march=native -Ofast -fomit-frame-pointer -ffunction-sections -fdata-sections -fmerge-all-constants -flto -Wl,-O1 -Wl,--sort-common -Wl,--gc-sections -Wl,--icf=all
+CFLAGS_OPT = -s -mwindows -municode -D_WINDOWS -DNDEBUG -march=native -O3 -ffast-math -fomit-frame-pointer -ffunction-sections -fdata-sections -fmerge-all-constants -flto -Wl,-O1 -Wl,--sort-common -Wl,--gc-sections -Wl,--icf=all
 CFLAGS_DBG = -g -D_CONSOLE -D_DEBUG -D_UNICODE -DUNICODE
 
 default: WinKodiG20.exe

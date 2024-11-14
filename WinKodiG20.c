@@ -268,13 +268,13 @@ static VOID SendHandleFake(CONST WORD wVk, CONST BOOL bRelease)
 {
 	switch (wVk)
 	{
+	default:
+		Send(wVk, bRelease, FALSE);
+		return;
 	case VK_FAKE_BRIGHTNESS_DOWN:
 	case VK_FAKE_BRIGHTNESS_UP:
 		if (!bRelease)
 			SetBrightness(wVk == VK_FAKE_BRIGHTNESS_DOWN ? -10 : 10);
-		return;
-	default:
-		Send(wVk, bRelease, FALSE);
 		return;
 	}
 }
@@ -319,11 +319,10 @@ static VOID connectHeadset(BOOL bSkipReconnect)
 	#define AUTOHOTKEY_EXE_BASENAME L"AutoHotkey.exe"
 	#define AUTOHOTKEY_COMMON_START AUTOHOTKEY_EXE_BASENAME L" /ErrorStdOut "
 	#define CONNECTSONYHEADSET_PATH L"\"D:\\Strm\\syncthing\\backups\\ConnectSonyBluetoothHeadset\\ConnectSonyHeadset.ahk\""
-	LPCWSTR CONST lpApplicationName = L"C:\\Program Files\\AutoHotkey\\" AUTOHOTKEY_EXE_BASENAME;
-	if (bSkipReconnect)
-		StartProgramW(lpApplicationName, (WCHAR[]) { AUTOHOTKEY_COMMON_START CONNECTSONYHEADSET_PATH L" /skipreconnect" }, NULL);
-	else
-		StartProgramW(lpApplicationName, (WCHAR[]) { AUTOHOTKEY_COMMON_START L"/restart " CONNECTSONYHEADSET_PATH }, NULL);
+	StartProgramW(L"C:\\Program Files\\AutoHotkey\\" AUTOHOTKEY_EXE_BASENAME, 
+				  bSkipReconnect ? (WCHAR[]) { AUTOHOTKEY_COMMON_START CONNECTSONYHEADSET_PATH L" /skipreconnect" }
+								 : (WCHAR[]) { AUTOHOTKEY_COMMON_START L"/restart " CONNECTSONYHEADSET_PATH },
+				  NULL);
 }
 
 static VOID minimiseTerminateKodi(VOID)
@@ -386,6 +385,9 @@ static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease
 {
 	switch (last_key)
 	{
+	default:
+		Send(last_key, TRUE, FALSE);
+		break;
 	case VK_SLEEP:
 		if (LIKELY(!bOnlyRelease))
 			startStopKodi();
@@ -403,9 +405,6 @@ static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease
 			cycleKodiInfo();
 		break;
 	case VK_MEDIA_STOP:
-		break;
-	default:
-		Send(last_key, TRUE, FALSE);
 		break;
 	}
 }
@@ -457,7 +456,10 @@ INT main(VOID)
 			case 0: // timeout reached if dwTimeoutMs != INFINITE - key not released
 				switch (last_key)
 				{
-				case 0:
+				default:
+					SendHandleFake(last_key, FALSE);
+					if (dwTimeoutMs != 100) // enable quick repeats
+						dwTimeoutMs = 100;
 					break;
 				case VK_SLEEP:
 					last_key = 0;
@@ -475,10 +477,7 @@ INT main(VOID)
 					Send(last_key, FALSE, TRUE);
 					last_key = 0;
 					break;
-				default:
-					SendHandleFake(last_key, FALSE);
-					if (dwTimeoutMs != 100) // enable quick repeats
-						dwTimeoutMs = 100;
+				case 0:
 					break;
 				}
 
