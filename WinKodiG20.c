@@ -23,6 +23,9 @@
 
 #include "stdafx.h"
 
+#define VK_FAKE_BRIGHTNESS_DOWN VK_OEM_2
+#define VK_FAKE_BRIGHTNESS_UP VK_OEM_3
+
 static HANDLE hArrivalWaitEvent = NULL;
 
 static HANDLE hRemote = INVALID_HANDLE_VALUE;
@@ -261,6 +264,21 @@ static VOID QuickSendMod(CONST WORD wVk, CONST BOOL bCtrl, CONST BOOL bShift, CO
 	SendInput(inputCount, inputs, sizeof(*inputs));
 }
 
+static VOID SendHandleFake(CONST WORD wVk, CONST BOOL bRelease)
+{
+	switch (wVk)
+	{
+	case VK_FAKE_BRIGHTNESS_DOWN:
+	case VK_FAKE_BRIGHTNESS_UP:
+		if (!bRelease)
+			SetBrightness(wVk == VK_FAKE_BRIGHTNESS_DOWN ? -10 : 10);
+		return;
+	default:
+		Send(wVk, bRelease, FALSE);
+		return;
+	}
+}
+
 static VOID cycleKodiInfo(VOID)
 {
 	static INT phase_cycle = -1;
@@ -458,7 +476,7 @@ INT main(VOID)
 					last_key = 0;
 					break;
 				default:
-					Send(last_key, FALSE, FALSE);
+					SendHandleFake(last_key, FALSE);
 					if (dwTimeoutMs != 100) // enable quick repeats
 						dwTimeoutMs = 100;
 					break;
@@ -510,15 +528,15 @@ INT main(VOID)
 			MAP_LONGPRESS_CUSTOM(48, VK_SLEEP) // Power
 			MAP_LONGPRESS_CUSTOM(-69, VK_LAUNCH_MEDIA_SELECT) // Input
 			MAP_KEYPRESS(35, VK_HOME) // Home
-			MAP_FUNCCALL(119, SetBrightness, -10) // YouTube
-			MAP_FUNCCALL(120, SetBrightness, 10) // Netflix
+			MAP_KEYPRESS(119, VK_FAKE_BRIGHTNESS_DOWN) // YouTube
+			MAP_KEYPRESS(120, VK_FAKE_BRIGHTNESS_UP) // Netflix
 			MAP_KEYPRESS(105, VK_F13) // Red
 			MAP_KEYPRESS(106, VK_F14) // Green
 			default: continue;
 			}
 
 			if (LIKELY(last_key != 0)) {
-				Send(last_key, FALSE, FALSE);
+				SendHandleFake(last_key, FALSE);
 check_longpress:
 				dwTimeoutMs = 500;
 			}
