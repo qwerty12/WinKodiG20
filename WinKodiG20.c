@@ -402,7 +402,7 @@ static VOID handle_last_key_release(CONST WORD last_key, CONST BOOL bOnlyRelease
 		if (LIKELY(!bOnlyRelease))
 			cycleKodiInfo();
 		break;
-	case (WORD)'X':
+	case VK_MEDIA_STOP:
 		break;
 	default:
 		Send(last_key, TRUE, FALSE);
@@ -471,7 +471,7 @@ INT main(VOID)
 					last_key = 'O';
 					// fall through
 				case (WORD)'Z':
-				case (WORD)'X':
+				case VK_MEDIA_STOP:
 					Send(last_key, FALSE, TRUE);
 					last_key = 0;
 					break;
@@ -520,9 +520,9 @@ INT main(VOID)
 			MAP_KEYPRESS(107, VK_TAB) // Blue
 			MAP_KEYPRESS(97, 'T') // Subtitles
 			MAP_LONGPRESS_CUSTOM(-67, 'I') // Info
-			MAP_KEYPRESS(122, VK_NEXT) // Google Play
-			MAP_LONGPRESS_CUSTOM(-115, 'X') // Guide
-			MAP_KEYPRESS(121, VK_PRIOR) // Prime Video
+			MAP_KEYPRESS_QUICK(122, KodiHwnd() ? VK_NEXT : VK_MEDIA_NEXT_TRACK) // Google Play
+			MAP_KEYPRESS_QUICK(121, KodiHwnd() ? VK_PRIOR : VK_MEDIA_PREV_TRACK) // Prime Video
+			MAP_LONGPRESS_CUSTOM(-115, VK_MEDIA_STOP) // Guide
 			MAP_KEYPRESS(42, VK_F15) // Bookmarks
 			MAP_LONGPRESS_CUSTOM(108, 'Z') // Yellow
 			MAP_LONGPRESS_CUSTOM(48, VK_SLEEP) // Power
