@@ -1,6 +1,6 @@
 // ==WindhawkMod==
 // @id              kodi-ignore-appcommands
-// @name            Hide WM_APPCOMMANDs from Kodi
+// @name            Kodi: Hide WM_APPCOMMANDs
 // @description     So certain buttons on my remote don't trigger actions, oh and disable shutdown/reboot too
 // @version         1.0
 // @include         kodi.exe
@@ -36,7 +36,8 @@ struct SET_WINDOW_SUBCLASS_FROM_ANY_THREAD_PARAM {
 
 LRESULT CALLBACK CallWndProcForWindowSubclass(int nCode,
                                               WPARAM wParam,
-                                              LPARAM lParam) {
+                                              LPARAM lParam)
+{
     if (nCode == HC_ACTION) {
         const CWPSTRUCT* cwp = (const CWPSTRUCT*)lParam;
         if (cwp->message == g_subclassRegisteredMsg && cwp->wParam) {
@@ -54,7 +55,8 @@ LRESULT CALLBACK CallWndProcForWindowSubclass(int nCode,
 static BOOL SetWindowSubclassFromAnyThread(HWND hWnd,
                                     SUBCLASSPROC pfnSubclass,
                                     UINT_PTR uIdSubclass,
-                                    DWORD_PTR dwRefData) {
+                                    DWORD_PTR dwRefData)
+{
     DWORD dwThreadId = GetWindowThreadProcessId(hWnd, nullptr);
     if (dwThreadId == 0) {
         return FALSE;
@@ -87,7 +89,8 @@ LRESULT CALLBACK KodiWindowSubclassProc(_In_ HWND hWnd,
                                         _In_ WPARAM wParam,
                                         _In_ LPARAM lParam,
                                         _In_ UINT_PTR uIdSubclass,
-                                        _In_ DWORD_PTR dwRefData) {
+                                        _In_ DWORD_PTR dwRefData)
+{
     if (uMsg == WM_NCDESTROY || (uMsg == g_subclassRegisteredMsg && !wParam)) {
         RemoveWindowSubclass(hWnd, KodiWindowSubclassProc, 0);
     }
@@ -114,7 +117,8 @@ LRESULT CALLBACK KodiWindowSubclassProc(_In_ HWND hWnd,
     return DefSubclassProc(hWnd, uMsg, wParam, lParam);
 }
 
-static bool IsKodiWindow(HWND hWnd) {
+static bool IsKodiWindow(HWND hWnd)
+{
     WCHAR szClassName[32];
     if (!GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName)) ||
         wcscmp(szClassName, L"Kodi") != 0) {
@@ -124,7 +128,8 @@ static bool IsKodiWindow(HWND hWnd) {
     return true;
 }
 
-BOOL CALLBACK InitialEnumKodiWindowsFunc(HWND hWnd, LPARAM lParam) {
+BOOL CALLBACK InitialEnumKodiWindowsFunc(HWND hWnd, LPARAM lParam)
+{
     DWORD dwProcessId = 0;
     if (!GetWindowThreadProcessId(hWnd, &dwProcessId) ||
         dwProcessId != GetCurrentProcessId()) {
@@ -156,7 +161,8 @@ HWND WINAPI CreateWindowExWHook(DWORD dwExStyle,
                                 HWND hWndParent,
                                 HMENU hMenu,
                                 HINSTANCE hInstance,
-                                LPVOID lpParam) {
+                                LPVOID lpParam)
+{
     HWND hWnd = pOriginalCreateWindowExW(dwExStyle, lpClassName, lpWindowName,
                                          dwStyle, X, Y, nWidth, nHeight,
                                          hWndParent, hMenu, hInstance, lpParam);
@@ -174,7 +180,8 @@ HWND WINAPI CreateWindowExWHook(DWORD dwExStyle,
     return hWnd;
 }
 
-static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdc, LPRECT lprcClip, LPARAM dwData) {
+static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdc, LPRECT lprcClip, LPARAM dwData)
+{
     DWORD cPhysicalMonitors = 0;
     PHYSICAL_MONITOR physicalMonitors[8]; // CBA with allocing for an unlikely case
 
@@ -199,11 +206,17 @@ static BOOL CALLBACK MonitorEnumProc(HMONITOR hMonitor, HDC hdc, LPRECT lprcClip
     return TRUE;
 }
 
+static VOID DisplaysOff()
+{
+    EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, 0);
+}
+
 using SetSuspendState_t = decltype(&SetSuspendState);
 SetSuspendState_t pOriginalSetSuspendState;
 BOOLEAN WINAPI SetSuspendStateHook(BOOLEAN bHibernate,
                                    BOOLEAN bForce,
-                                   BOOLEAN bWakeupEventsDisabled) {
+                                   BOOLEAN bWakeupEventsDisabled)
+{
     if (!bHibernate && bForce && !bWakeupEventsDisabled) {
         INPUT inputs[2];
         ZeroMemory(inputs, sizeof(inputs));
@@ -212,7 +225,7 @@ BOOLEAN WINAPI SetSuspendStateHook(BOOLEAN bHibernate,
         inputs[0].ki.wVk = inputs[1].ki.wVk = VK_ESCAPE;
         inputs[1].ki.dwFlags = KEYEVENTF_KEYUP;
 
-        EnumDisplayMonitors(nullptr, nullptr, MonitorEnumProc, 0);
+        DisplaysOff();
     	SendInput(ARRAYSIZE(inputs), inputs, sizeof(*inputs));
     }
 
@@ -223,10 +236,13 @@ DWORD WINAPI InitiateShutdownWHook(LPWSTR lpMachineName,
                                    LPWSTR lpMessage,
                                    DWORD dwGracePeriod,
                                    DWORD dwShutdownFlags,
-                                   DWORD dwReason) {
+                                   DWORD dwReason)
+{
     if (dwShutdownFlags & (SHUTDOWN_POWEROFF | SHUTDOWN_RESTART)) {
         //if (g_kodiWnd)
         //    PostMessageW(g_kodiWnd, WM_CLOSE, 0, 0);
+        if (dwShutdownFlags & SHUTDOWN_RESTART)
+            DisplaysOff();
         pOriginalSetSuspendState(FALSE, TRUE, TRUE);
         return ERROR_SUCCESS;
     }
@@ -282,7 +298,7 @@ WINBOOL WINAPI ReadFileHook(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesT
             LPCSTR lpReplacement;
         } CONST replacements[] = {
             { R"(msgid "Power off system")", R"(msgid " Suspend system ")" },
-            { R"(msgid "Reboot")", R"(msgid "Susp'd")" },
+            { R"(msgid "Reboot")", R"(msgid "Sleep^")" },
             { R"(msgid "Suspend")", R"(msgid "DispOff")" },
         };
         for (SIZE_T i = 0; i < ARRAYSIZE(replacements); ++i) {
@@ -299,7 +315,8 @@ WINBOOL WINAPI ReadFileHook(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesT
     return bRet;
 }
 
-BOOL Wh_ModInit() {
+BOOL Wh_ModInit()
+{
     Wh_Log(L">");
 
     Wh_SetFunctionHook((void*)CreateWindowExW, (void*)CreateWindowExWHook, (void**)&pOriginalCreateWindowExW);
@@ -312,13 +329,15 @@ BOOL Wh_ModInit() {
     return TRUE;
 }
 
-void Wh_ModAfterInit() {
+void Wh_ModAfterInit()
+{
     Wh_Log(L">");
 
     EnumWindows(InitialEnumKodiWindowsFunc, 0);
 }
 
-void Wh_ModUninit() {
+void Wh_ModUninit()
+{
     Wh_Log(L">");
 
     if (g_kodiWnd) {
