@@ -28,8 +28,10 @@ static VOID PopulatePhysicalPrimaryMonitor(VOID)
 		return;
 
 	lpPhysicalMonitors = (LPPHYSICAL_MONITOR)HeapAlloc(GetProcessHeap(), 0, sizeof(PHYSICAL_MONITOR) * cPhysicalMonitors);
-	if (UNLIKELY(!lpPhysicalMonitors))
+	if (UNLIKELY(!lpPhysicalMonitors)) {
+		cPhysicalMonitors = 0;
 		return;
+	}
 
 	if (UNLIKELY(!GetPhysicalMonitorsFromHMONITOR(hMonitor, cPhysicalMonitors, lpPhysicalMonitors))) {
 		cPhysicalMonitors = 0;
@@ -41,14 +43,28 @@ VOID SetBrightness(INT iIncOrDecrement)
 {
 	DWORD dwMinimumBrightness, dwCurrentBrightness, dwMaximumBrightness;
 
-	if (!lpPhysicalMonitors || !GetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, &dwMinimumBrightness, &dwCurrentBrightness, &dwMaximumBrightness)) {
+	if (!cPhysicalMonitors || !GetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, &dwMinimumBrightness, &dwCurrentBrightness, &dwMaximumBrightness)) {
 		ClearPhysicalMonitors();
 		PopulatePhysicalPrimaryMonitor();
-		if (UNLIKELY(!lpPhysicalMonitors || !GetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, &dwMinimumBrightness, &dwCurrentBrightness, &dwMaximumBrightness)))
+		if (UNLIKELY(!cPhysicalMonitors || !GetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, &dwMinimumBrightness, &dwCurrentBrightness, &dwMaximumBrightness)))
 			return;
 	}
 
 	CONST DWORD dwNewBrightness = CLAMP((INT)dwCurrentBrightness + iIncOrDecrement, (INT)dwMinimumBrightness, (INT)dwMaximumBrightness);
 	if (LIKELY(dwNewBrightness != dwCurrentBrightness))
 		SetMonitorBrightness(lpPhysicalMonitors[0].hPhysicalMonitor, dwNewBrightness);
+}
+
+VOID PrimaryDisplayOff(VOID)
+{
+	if (!cPhysicalMonitors) {
+		PopulatePhysicalPrimaryMonitor();
+		if (UNLIKELY(!cPhysicalMonitors))
+			return;
+	}
+
+	for (DWORD i = 0; i < 3; ++i) {
+		if (!SetVCPFeature(lpPhysicalMonitors[0].hPhysicalMonitor, 0xD6, 0x05)) // HardOff
+			break;
+	}
 }

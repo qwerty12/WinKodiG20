@@ -27,4 +27,7 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="WinKodiG20.exe.manifest" />
+  </ItemGroup>
 </Project>

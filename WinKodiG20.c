@@ -328,37 +328,39 @@ static VOID connectHeadset(BOOL bSkipReconnect)
 static VOID minimiseTerminateKodi(VOID)
 {
 	HWND hWndKodi = KodiHwnd();
-	if (UNLIKELY(!hWndKodi))
-		return;
+	if (hWndKodi) {
+		if (LIKELY(!IsHungAppWindow(hWndKodi))) {
+			ShowWindow(hWndKodi, SW_MINIMIZE);
+		} else {
+			static HWND (WINAPI *HungWindowFromGhostWindow)(HWND) = NULL;
+			if (!HungWindowFromGhostWindow) {
+#if __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstrict-aliasing"
+#endif
+				*(FARPROC*)&HungWindowFromGhostWindow = GetProcAddress(GetModuleHandleW(L"user32.dll"), "HungWindowFromGhostWindow");
+#if __GNUC__
+#pragma GCC diagnostic pop
+#endif
+			}
 
-	if (LIKELY(!IsHungAppWindow(hWndKodi))) {
-		ShowWindow(hWndKodi, SW_MINIMIZE);
-	} else {
-		static HWND (WINAPI *HungWindowFromGhostWindow)(HWND) = NULL;
-		if (!HungWindowFromGhostWindow) {
-#if __GNUC__
-			#pragma GCC diagnostic push
-			#pragma GCC diagnostic ignored "-Wstrict-aliasing"
-#endif
-			*(FARPROC*)&HungWindowFromGhostWindow = GetProcAddress(GetModuleHandleW(L"user32.dll"), "HungWindowFromGhostWindow");
-#if __GNUC__
-			#pragma GCC diagnostic pop
-#endif
+			CONST HWND hWndAntiGhost = HungWindowFromGhostWindow(hWndKodi);
+			if (hWndAntiGhost)
+				hWndKodi = hWndAntiGhost;
+
+			DWORD dwProcessId;
+			if (UNLIKELY(!GetWindowThreadProcessId(hWndKodi, &dwProcessId)))
+				return;
+
+			CONST HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, dwProcessId);
+			if (UNLIKELY(!hProcess))
+				return;
+			TerminateProcess(hProcess, EXIT_FAILURE);
+			CloseHandle(hProcess);
 		}
-
-		CONST HWND hWndAntiGhost = HungWindowFromGhostWindow(hWndKodi);
-		if (hWndAntiGhost)
-			hWndKodi = hWndAntiGhost;
-
-		DWORD dwProcessId;
-		if (UNLIKELY(!GetWindowThreadProcessId(hWndKodi, &dwProcessId)))
-			return;
-
-		CONST HANDLE hProcess = OpenProcess(PROCESS_TERMINATE, FALSE, dwProcessId);
-		if (UNLIKELY(!hProcess))
-			return;
-		TerminateProcess(hProcess, EXIT_FAILURE);
-		CloseHandle(hProcess);
+	} else {
+		PrimaryDisplayOff();
+		SetSuspendState(FALSE, TRUE, TRUE);
 	}
 }
 

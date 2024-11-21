@@ -23,7 +23,9 @@
 #include <cfgmgr32.h>
 #include <Psapi.h>
 #include <physicalmonitorenumerationapi.h>
+#include <lowlevelmonitorconfigurationapi.h>
 #include <highlevelmonitorconfigurationapi.h>
+#include <powrprof.h>
 // C RunTime Header Files
 #include <stdlib.h>
 #include <stdio.h>
@@ -39,6 +41,7 @@ extern "C" {
 
 	VOID ClearPhysicalMonitors(VOID);
 	VOID SetBrightness(INT);
+	VOID PrimaryDisplayOff(VOID);
 
 #ifdef __cplusplus
 }
