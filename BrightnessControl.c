@@ -63,8 +63,8 @@ VOID PrimaryDisplayOff(VOID)
 			return;
 	}
 
-	for (DWORD i = 0; i < 3; ++i) {
-		if (!SetVCPFeature(lpPhysicalMonitors[0].hPhysicalMonitor, 0xD6, 0x05)) // HardOff
+	for (DWORD i = 0; i < 10; ++i) {
+		if (!SetVCPFeature(lpPhysicalMonitors[0].hPhysicalMonitor, 0xD6, 0x05) && i > 5) // HardOff
 			break;
 	}
 }

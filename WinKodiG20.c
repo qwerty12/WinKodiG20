@@ -189,6 +189,12 @@ static VOID PauseSpotify(VOID)
 		SendAppCommand(hWndSpotify, APPCOMMAND_MEDIA_STOP);
 }
 
+static BOOL ForegroundIsKodi(VOID)
+{
+	CONST HWND hWndKodi = KodiHwnd();
+	return hWndKodi && hWndKodi == GetForegroundWindow();
+}
+
 static VOID Send(CONST WORD wVk, CONST BOOL bRelease, CONST BOOL bQuick)
 {
 	CONST INT inputCount = bQuick ? 2 : 1;
@@ -521,8 +527,8 @@ INT main(VOID)
 			MAP_KEYPRESS(107, VK_TAB) // Blue
 			MAP_KEYPRESS(97, 'T') // Subtitles
 			MAP_LONGPRESS_CUSTOM(-67, 'I') // Info
-			MAP_KEYPRESS_QUICK(122, KodiHwnd() ? VK_NEXT : VK_MEDIA_NEXT_TRACK) // Google Play
-			MAP_KEYPRESS_QUICK(121, KodiHwnd() ? VK_PRIOR : VK_MEDIA_PREV_TRACK) // Prime Video
+			MAP_KEYPRESS_QUICK(122, ForegroundIsKodi() ? VK_NEXT : VK_MEDIA_NEXT_TRACK) // Google Play
+			MAP_KEYPRESS_QUICK(121, ForegroundIsKodi() ? VK_PRIOR : VK_MEDIA_PREV_TRACK) // Prime Video
 			MAP_LONGPRESS_CUSTOM(-115, VK_MEDIA_STOP) // Guide
 			MAP_KEYPRESS(42, VK_F15) // Bookmarks
 			MAP_LONGPRESS_CUSTOM(108, 'Z') // Yellow
