@@ -5,6 +5,7 @@
 // @version         1.0
 // @include         kodi.exe
 // @compilerOptions -lcomctl32 -ldxva2
+// @architecture    x86-64
 // ==/WindhawkMod==
 
 // Window messaging/subclassing code ripped entirely from m417z
@@ -18,71 +19,10 @@
 #include <powrprof.h>
 #include <lowlevelmonitorconfigurationapi.h>
 #include <physicalmonitorenumerationapi.h>
+#include <appmodel.h>
 #include <cwchar>
 
 static HWND g_kodiWnd;
-
-// wParam - TRUE to subclass, FALSE to unsubclass
-// lParam - subclass data
-UINT g_subclassRegisteredMsg = RegisterWindowMessage(
-    L"Windhawk_SetWindowSubclassFromAnyThread_kodi-ignore-appcommands");
-
-struct SET_WINDOW_SUBCLASS_FROM_ANY_THREAD_PARAM {
-    SUBCLASSPROC pfnSubclass;
-    UINT_PTR uIdSubclass;
-    DWORD_PTR dwRefData;
-    BOOL result;
-};
-
-LRESULT CALLBACK CallWndProcForWindowSubclass(int nCode,
-                                              WPARAM wParam,
-                                              LPARAM lParam)
-{
-    if (nCode == HC_ACTION) {
-        const CWPSTRUCT* cwp = (const CWPSTRUCT*)lParam;
-        if (cwp->message == g_subclassRegisteredMsg && cwp->wParam) {
-            SET_WINDOW_SUBCLASS_FROM_ANY_THREAD_PARAM* param =
-                (SET_WINDOW_SUBCLASS_FROM_ANY_THREAD_PARAM*)cwp->lParam;
-            param->result =
-                SetWindowSubclass(cwp->hwnd, param->pfnSubclass,
-                                  param->uIdSubclass, param->dwRefData);
-        }
-    }
-
-    return CallNextHookEx(nullptr, nCode, wParam, lParam);
-}
-
-static BOOL SetWindowSubclassFromAnyThread(HWND hWnd,
-                                    SUBCLASSPROC pfnSubclass,
-                                    UINT_PTR uIdSubclass,
-                                    DWORD_PTR dwRefData)
-{
-    DWORD dwThreadId = GetWindowThreadProcessId(hWnd, nullptr);
-    if (dwThreadId == 0) {
-        return FALSE;
-    }
-
-    if (dwThreadId == GetCurrentThreadId()) {
-        return SetWindowSubclass(hWnd, pfnSubclass, uIdSubclass, dwRefData);
-    }
-
-    HHOOK hook = SetWindowsHookExW(WH_CALLWNDPROC, CallWndProcForWindowSubclass,
-                                  nullptr, dwThreadId);
-    if (!hook) {
-        return FALSE;
-    }
-
-    SET_WINDOW_SUBCLASS_FROM_ANY_THREAD_PARAM param;
-    param.pfnSubclass = pfnSubclass;
-    param.uIdSubclass = uIdSubclass;
-    param.dwRefData = dwRefData;
-    param.result = FALSE;
-    SendMessageW(hWnd, g_subclassRegisteredMsg, TRUE, (WPARAM)&param);
-
-    UnhookWindowsHookEx(hook);
-
-    return param.result;
-}
 
 LRESULT CALLBACK KodiWindowSubclassProc(_In_ HWND hWnd,
                                         _In_ UINT uMsg,
@@ -91,10 +31,6 @@ LRESULT CALLBACK KodiWindowSubclassProc(_In_ HWND hWnd,
                                         _In_ UINT_PTR uIdSubclass,
                                         _In_ DWORD_PTR dwRefData)
 {
-    if (uMsg == WM_NCDESTROY || (uMsg == g_subclassRegisteredMsg && !wParam)) {
-        RemoveWindowSubclass(hWnd, KodiWindowSubclassProc, 0);
-    }
-
     switch (uMsg) {
         case WM_APPCOMMAND:
             switch (GET_APPCOMMAND_LPARAM(lParam)) {
@@ -110,6 +46,7 @@ LRESULT CALLBACK KodiWindowSubclassProc(_In_ HWND hWnd,
             }
 
         case WM_NCDESTROY:
+            RemoveWindowSubclass(hWnd, KodiWindowSubclassProc, 0);
             g_kodiWnd = nullptr;
             break;
     }
@@ -126,26 +63,6 @@ static bool IsKodiWindow(HWND hWnd)
     }
 
     return true;
-}
-
-BOOL CALLBACK InitialEnumKodiWindowsFunc(HWND hWnd, LPARAM lParam)
-{
-    DWORD dwProcessId = 0;
-    if (!GetWindowThreadProcessId(hWnd, &dwProcessId) ||
-        dwProcessId != GetCurrentProcessId()) {
-        return TRUE;
-    }
-
-    if (!IsKodiWindow(hWnd)) {
-        return TRUE;
-    }
-
-    Wh_Log(L"Kodi window found: %08X", (DWORD)(ULONG_PTR)hWnd);
-
-    g_kodiWnd = hWnd;
-    SetWindowSubclassFromAnyThread(hWnd, KodiWindowSubclassProc, 0, 0);
-
-    return FALSE;
 }
 
 using CreateWindowExW_t = decltype(&CreateWindowExW);
@@ -315,9 +232,20 @@ WINBOOL WINAPI ReadFileHook(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesT
     return bRet;
 }
 
+using GetCurrentPackageFullName_t = decltype(&GetCurrentPackageFullName);
+GetCurrentPackageFullName_t pOriginalGetCurrentPackageFullName;
+LONG WINAPI GetCurrentPackageFullNameHook(UINT32 *packageFullNameLength, PWSTR packageFullName)
+{
+    if (!packageFullName && packageFullNameLength && *packageFullNameLength == 0)
+        return ERROR_INVALID_PARAMETER;
+    return pOriginalGetCurrentPackageFullName(packageFullNameLength, packageFullName);
+}
+
 BOOL Wh_ModInit()
 {
     Wh_Log(L">");
+
+    Wh_SetFunctionHook((void*)GetCurrentPackageFullName, (void*)GetCurrentPackageFullNameHook, (void**)&pOriginalGetCurrentPackageFullName);
 
     Wh_SetFunctionHook((void*)CreateWindowExW, (void*)CreateWindowExWHook, (void**)&pOriginalCreateWindowExW);
     Wh_SetFunctionHook((void*)GetProcAddress(LoadLibraryExW(L"powrprof.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32), "SetSuspendState"), (void*)SetSuspendStateHook, (void**)&pOriginalSetSuspendState);
@@ -327,20 +255,4 @@ BOOL Wh_ModInit()
     Wh_SetFunctionHook((void*)ReadFile, (void*)ReadFileHook, (void**)&pOriginalReadFile);
 
     return TRUE;
-}
-
-void Wh_ModAfterInit()
-{
-    Wh_Log(L">");
-
-    EnumWindows(InitialEnumKodiWindowsFunc, 0);
-}
-
-void Wh_ModUninit()
-{
-    Wh_Log(L">");
-
-    if (g_kodiWnd) {
-        SendMessageW(g_kodiWnd, g_subclassRegisteredMsg, FALSE, 0);
-    }
 }
